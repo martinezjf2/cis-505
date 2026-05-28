@@ -59,3 +59,9 @@ cd cis-505
 
 ## Textbooks Companion Website
 * https://media.pearsoncmg.com/ph/esm/ecs_liang_ijp_12/cw/ 
+
+to create Jar File do this command: jar cf MartinezCombined.jar MartinezJarOne.java MartinezJarTwo.java
+
+To Decompress to MANIFEST run this command: jar xf MartinezCombined.jar
+
+ As we move forward, all submissions must be packaged in a single JAR file and uploaded to Blackboard. Name all JAR files YourLastNameAssignmentName.jar.
