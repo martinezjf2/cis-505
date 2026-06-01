@@ -9,6 +9,9 @@ import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.stage.Stage;
 
+import java.io.*;
+import java.nio.file.*;
+
 public class GradeBookApp extends Application {
 
     // Form fields
@@ -19,6 +22,10 @@ public class GradeBookApp extends Application {
 
     // Results area
     private TextArea resultsArea;
+
+    // CSV file path (same directory as the application)
+    private static final String CSV_FILE = "grades.csv";
+    private static final String CSV_HEADER = "firstName,lastName,course,grade";
 
     @Override
     public void start(Stage primaryStage) {
@@ -84,7 +91,6 @@ public class GradeBookApp extends Application {
             "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.08), 6, 0, 0, 2);"
         );
 
-        // Card title
         Text cardTitle = new Text("Grade Entry Form");
         cardTitle.setFont(Font.font("Arial", FontWeight.BOLD, 15));
         cardTitle.setStyle("-fx-fill: #1a3a5c;");
@@ -98,7 +104,6 @@ public class GradeBookApp extends Application {
         grid.setVgap(14);
         grid.setAlignment(Pos.CENTER_LEFT);
 
-        // Column constraints: label col + field col
         ColumnConstraints labelCol = new ColumnConstraints(120);
         ColumnConstraints fieldCol = new ColumnConstraints(320);
         grid.getColumnConstraints().addAll(labelCol, fieldCol);
@@ -181,14 +186,14 @@ public class GradeBookApp extends Application {
         row.setAlignment(Pos.CENTER_RIGHT);
         row.setPadding(new Insets(8, 0, 0, 0));
 
-        Button clearBtn = createButton("Clear", "#6b7c93", "#ffffff");
+        Button clearBtn = createButton("Clear",       "#6b7c93", "#ffffff");
         Button viewBtn  = createButton("View Grades", "#2e6da4", "#ffffff");
-        Button saveBtn  = createButton("Save Entry", "#1a3a5c", "#ffffff");
+        Button saveBtn  = createButton("Save Entry",  "#1a3a5c", "#ffffff");
 
-        // Event handlers will be wired in Sprint 2 (Module 11)
-        clearBtn.setOnAction(e -> { /* TODO: Sprint 2 */ });
-        viewBtn.setOnAction(e ->  { /* TODO: Sprint 2 */ });
-        saveBtn.setOnAction(e ->  { /* TODO: Sprint 2 */ });
+        // ── Event Handlers ─────────────────────────────────────────────
+        clearBtn.setOnAction(e -> handleClear());
+        viewBtn.setOnAction(e  -> handleViewGrades());
+        saveBtn.setOnAction(e  -> handleSave());
 
         row.getChildren().addAll(clearBtn, viewBtn, saveBtn);
         return row;
@@ -209,7 +214,6 @@ public class GradeBookApp extends Application {
             bgColor, textColor
         );
         btn.setStyle(base);
-        // Hover effect
         btn.setOnMouseEntered(e -> btn.setStyle(base + "-fx-opacity: 0.85;"));
         btn.setOnMouseExited(e  -> btn.setStyle(base));
         return btn;
@@ -260,12 +264,134 @@ public class GradeBookApp extends Application {
         footer.setStyle("-fx-background-color: #dce8f0;");
         footer.setAlignment(Pos.CENTER_LEFT);
 
-        Label footerText = new Label("Sprint 1 — UI Only  |  Event handling coming in Sprint 2 (Module 11)");
+        Label footerText = new Label("Sprint 2 — Fully Functional  |  OpenEdX GradeBookApp");
         footerText.setFont(Font.font("Arial", 11));
         footerText.setStyle("-fx-text-fill: #5a7a96;");
 
         footer.getChildren().add(footerText);
         return footer;
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // EVENT HANDLERS
+    // ──────────────────────────────────────────────────────────────────────
+
+    // ── Handle Clear ───────────────────────────────────────────────────────
+    private void handleClear() {
+        firstNameField.clear();
+        lastNameField.clear();
+        courseField.clear();
+        gradeComboBox.getSelectionModel().clearSelection();
+        gradeComboBox.setPromptText("Select grade");
+        resultsArea.clear();
+    }
+
+    // ── Handle Save ────────────────────────────────────────────────────────
+    private void handleSave() {
+        // Validate all fields are filled
+        String firstName = firstNameField.getText().trim();
+        String lastName  = lastNameField.getText().trim();
+        String course    = courseField.getText().trim();
+        String grade     = gradeComboBox.getValue();
+
+        if (firstName.isEmpty() || lastName.isEmpty() || course.isEmpty() || grade == null) {
+            showAlert(Alert.AlertType.ERROR,
+                "Missing Information",
+                "All fields are required.",
+                "Please fill in First Name, Last Name, Course, and Grade before saving.");
+            return;
+        }
+
+        // Create Student object using parameterized constructor
+        Student student = new Student(firstName, lastName, course, grade);
+
+        // Write to CSV, creating header row if file does not exist
+        try {
+            File csvFile = new File(CSV_FILE);
+            boolean isNewFile = !csvFile.exists();
+
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(csvFile, true))) {
+                if (isNewFile) {
+                    writer.write(CSV_HEADER);
+                    writer.newLine();
+                }
+                writer.write(firstName + "," + lastName + "," + course + "," + grade);
+                writer.newLine();
+            }
+
+            showAlert(Alert.AlertType.INFORMATION,
+                "Entry Saved",
+                "Grade entry saved successfully.",
+                student.toString());
+
+            // Clear form after successful save
+            handleClear();
+
+        } catch (IOException ex) {
+            showAlert(Alert.AlertType.ERROR,
+                "Save Error",
+                "Could not write to grades.csv.",
+                ex.getMessage());
+        }
+    }
+
+    // ── Handle View Grades ─────────────────────────────────────────────────
+    private void handleViewGrades() {
+        File csvFile = new File(CSV_FILE);
+
+        if (!csvFile.exists()) {
+            resultsArea.setText("No grade records found. Save an entry first.");
+            return;
+        }
+
+        StringBuilder sb = new StringBuilder();
+
+        try (BufferedReader reader = new BufferedReader(new FileReader(csvFile))) {
+            String line;
+            boolean isHeader = true;
+
+            while ((line = reader.readLine()) != null) {
+                // Skip the header row
+                if (isHeader) {
+                    isHeader = false;
+                    continue;
+                }
+
+                // Parse CSV line into Student object and display via toString()
+                String[] parts = line.split(",");
+                if (parts.length == 4) {
+                    Student student = new Student(
+                        parts[0].trim(),
+                        parts[1].trim(),
+                        parts[2].trim(),
+                        parts[3].trim()
+                    );
+                    sb.append(student.toString()).append("\n");
+                }
+            }
+
+            // Display results or a friendly empty state message
+            if (sb.length() == 0) {
+                resultsArea.setText("No grade entries found in grades.csv.");
+            } else {
+                resultsArea.setText(sb.toString());
+            }
+
+        } catch (IOException ex) {
+            showAlert(Alert.AlertType.ERROR,
+                "Read Error",
+                "Could not read grades.csv.",
+                ex.getMessage());
+        }
+    }
+
+    // ── Alert Helper ───────────────────────────────────────────────────────
+    private void showAlert(Alert.AlertType type, String title, String header, String content) {
+        Alert alert = new Alert(type);
+        alert.setTitle(title);
+        alert.setHeaderText(header);
+        alert.setContentText(content);
+        alert.showAndWait();
     }
 
     public static void main(String[] args) {
